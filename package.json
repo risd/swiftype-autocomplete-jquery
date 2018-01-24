@@ -1,6 +1,6 @@
 {
   "name": "swiftype-autocomplete-jquery",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Swiftype jQuery Autocomplete Plugin =========",
   "main": "jquery.swiftype.autocomplete.js",
   "scripts": {
