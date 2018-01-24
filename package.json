@@ -1,0 +1,19 @@
+{
+  "name": "swiftype-autocomplete-jquery",
+  "version": "1.0.0",
+  "description": "Swiftype jQuery Autocomplete Plugin =========",
+  "main": "jquery.swiftype.autocomplete.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/risd/swiftype-autocomplete-jquery.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/risd/swiftype-autocomplete-jquery/issues"
+  },
+  "homepage": "https://github.com/risd/swiftype-autocomplete-jquery#readme"
+}
