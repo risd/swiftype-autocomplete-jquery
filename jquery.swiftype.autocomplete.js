@@ -1,4 +1,27 @@
 (function ($) {
+  
+  $.eventEmitter = {
+    _JQInit: function() {
+      this._JQ = $(this);
+    },
+    emit: function(evt, data) {
+      !this._JQ && this._JQInit();
+      this._JQ.trigger(evt, data);
+    },
+    once: function(evt, handler) {
+      !this._JQ && this._JQInit();
+      this._JQ.one(evt, handler);
+    },
+    on: function(evt, handler) {
+      !this._JQ && this._JQInit();
+      this._JQ.bind(evt, handler);
+    },
+    off: function(evt, handler) {
+      !this._JQ && this._JQInit();
+      this._JQ.unbind(evt, handler);
+    }
+  };
+
   var queryParser = function (a) {
       var i, p, b = {};
       if (a === "") {
@@ -82,6 +105,10 @@
       $this.cache = new LRUCache(10);
       $this.emptyQueries = [];
 
+      var that = this;
+      that.dispatcher = {};
+      $.extend(that.dispatcher, $.eventEmitter);
+
       $this.isEmpty = function(query) {
         return $.inArray(normalize(query), this.emptyQueries) >= 0
       };
@@ -96,6 +123,10 @@
       $swiftypeWidget.appendTo(config.autocompleteContainingElement);
       var $list = $('<' + config.suggestionListType + ' />').appendTo($listContainer);
 
+      // add ability to hide the list externally, without
+      // triggering the `hide` event from being emitted
+      that.$listContainer = $listContainer;
+
       $this.data('swiftype-list', $list);
 
       $this.abortCurrent = function() {
@@ -106,25 +137,20 @@
 
       $this.showList = function() {
         if (handleFunctionParam(config.disableAutocomplete) === false) {
+          that.dispatcher.emit('show');
           $listContainer.show();
         }
       };
+
 
       $this.hideList = function(sync) {
         if (sync) {
           $listContainer.hide();
         } else {
-          setTimeout(function() { $listContainer.hide(); }, 10);
-        }
-      };
-
-      $this.showNoResults = function () {
-        $list.empty();
-        if (config.noResultsMessage === undefined) {
-          $this.hideList();
-        } else {
-          $list.append($('<li />', { 'class': config.noResultsClass }).text(config.noResultsMessage));
-          $this.showList();
+          setTimeout(function() {
+            that.dispatcher.emit('hide');
+            $listContainer.hide();
+          }, 10);
         }
       };
 
@@ -137,7 +163,7 @@
       };
 
       $this.listResults = function() {
-        return $(config.resultListSelector, $list).filter(':not(.' + config.noResultsClass + ')');
+        return $(config.resultListSelector, $list);
       };
 
       $this.activeResult = function() {
@@ -235,7 +261,8 @@
           } else if ($this.currentRequest) {
             $this.submitting();
           }
-          $this.hideList();
+          // $this.hideList();
+          $this.blur();
           suppressKey = true;
           break;
         case 38:
@@ -288,12 +315,12 @@
         if (mouseDown) {
           blurWait = true;
         } else {
-          $this.hideList();
+          // $this.hideList();
         }
       });
       $this.focus(function () {
         setTimeout(function() { $this.select() }, 10);
-        if ($this.listResults().length > 0) {
+        if ($this.listResults().filter(':not(.' + config.noResultsClass + ')').length > 0) {
           $this.showList();
         }
       });
@@ -303,6 +330,15 @@
   var normalize = function(str) {
     return $.trim(str).toLowerCase();
   };
+
+  function noResultsRecord (query) {
+    return {
+      page: [{
+        title: 'No results for: ' + query,
+        body: '',
+      }]
+    };
+  }
 
   var callRemote = function ($this, term) {
     $this.abortCurrent();
@@ -320,9 +356,8 @@
     params['sort_field'] = handleFunctionParam(config.sortField);
     params['sort_direction'] = handleFunctionParam(config.sortDirection);
     params['per_page'] = config.resultLimit;
-    params['highlight_fields'] = config.highlightFields;
 
-    var endpoint = Swiftype.root_url + '/api/v1/public/engines/suggest.json';
+    var endpoint = Swiftype.root_url + '/api/v1/public/engines/search.json';
     $this.currentRequest = $.ajax({
       type: 'GET',
       dataType: 'jsonp',
@@ -330,23 +365,16 @@
       data: params
     }).done(function(data) {
       var norm = normalize(term);
-      if (data.record_count > 0) {
-        $this.cache.put(norm, data.records);
-      } else {
-        $this.addEmpty(norm);
-        $this.showNoResults();
-        return;
+      if (data.record_count === 0) {
+        data.records = noResultsRecord(term);
       }
+      $this.cache.put(norm, data.records);
       processData($this, data.records, term);
     });
   };
 
   var getResults = function($this, term) {
     var norm = normalize(term);
-    if ($this.isEmpty(norm)) {
-      $this.showNoResults();
-      return;
-    }
     var cached = $this.cache.get(norm);
     if (cached) {
       processData($this, cached, term);
@@ -437,13 +465,13 @@
     return undefined;
   };
 
-	// simple client-side LRU Cache, based on https://github.com/rsms/js-lru
+  // simple client-side LRU Cache, based on https://github.com/rsms/js-lru
 
-	function LRUCache(limit) {
-	  this.size = 0;
-	  this.limit = limit;
-	  this._keymap = {};
-	}
+  function LRUCache(limit) {
+    this.size = 0;
+    this.limit = limit;
+    this._keymap = {};
+  }
 
   LRUCache.prototype.put = function (key, value) {
     var entry = {
@@ -548,7 +576,6 @@
     sortField: undefined,
     sortDirection: undefined,
     fetchFields: undefined,
-    highlightFields: undefined,
     noResultsClass: 'noResults',
     noResultsMessage: undefined,
     onComplete: defaultOnComplete,
